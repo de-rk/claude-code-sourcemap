@@ -297,6 +297,25 @@ export async function getAnthropicClient({
     return new AnthropicVertex(vertexArgs) as unknown as Anthropic
   }
 
+  // OpenAI-compatible provider (any OpenAI-compatible endpoint)
+  if (isEnvTruthy(process.env.CLAUDE_CODE_USE_OPENAI)) {
+    const oaiBaseUrl =
+      process.env.ANTHROPIC_BASE_URL || 'https://api.openai.com/v1'
+    const oaiKey =
+      process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || ''
+    const oaiHeaders = { ...ARGS.defaultHeaders }
+    delete oaiHeaders['x-app']
+    delete oaiHeaders['X-Claude-Code-Session-Id']
+    return new Anthropic({
+      apiKey: oaiKey,
+      baseURL: oaiBaseUrl,
+      defaultHeaders: { ...oaiHeaders, Authorization: `Bearer ${oaiKey}` },
+      maxRetries: ARGS.maxRetries,
+      timeout: ARGS.timeout,
+      dangerouslyAllowBrowser: true,
+    })
+  }
+
   // Determine authentication method based on available tokens
   const clientConfig: ConstructorParameters<typeof Anthropic>[0] = {
     apiKey: isClaudeAISubscriber() ? null : apiKey || getAnthropicApiKey(),

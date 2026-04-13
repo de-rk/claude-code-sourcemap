@@ -41,6 +41,78 @@ restored-src/src/
 └── vim/                  # Vim 模式
 ```
 
+## OpenAI 兼容提供商支持
+
+本仓库额外包含一个 `openai-proxy.js`，可将 Anthropic Messages API 请求转换为 OpenAI `/chat/completions` 格式，从而让 Claude Code 使用任意 OpenAI 兼容的模型提供商。
+
+### 配置
+
+复制 `.env` 模板并填入你的提供商信息：
+
+```bash
+cp .env.example .env   # 如果有模板的话
+# 或直接编辑 .env
+```
+
+`.env` 支持以下变量：
+
+| 变量 | 说明 | 默认值 |
+|------|------|--------|
+| `OPENAI_BASE_URL` | 提供商 API 地址 | `https://api.openai.com/v1` |
+| `OPENAI_API_KEY` | 提供商 API Key | — |
+| `OPENAI_MODEL` | 使用的模型名称 | `gpt-4o` |
+| `PROXY_PORT` | 本地代理端口 | `19999` |
+
+常用提供商示例：
+
+```env
+# DeepSeek
+OPENAI_BASE_URL=https://api.deepseek.com/v1
+OPENAI_API_KEY=sk-your-key
+OPENAI_MODEL=deepseek-chat
+
+# Groq
+OPENAI_BASE_URL=https://api.groq.com/openai/v1
+OPENAI_API_KEY=gsk_your-key
+OPENAI_MODEL=llama-3.3-70b-versatile
+
+# Ollama（本地）
+OPENAI_BASE_URL=http://localhost:11434/v1
+OPENAI_API_KEY=ollama
+OPENAI_MODEL=qwen2.5-coder:32b
+```
+
+### 启动方式
+
+**方式一：一条命令启动（推荐）**
+
+```bash
+node --env-file=.env package/cli.js
+```
+
+Claude Code 会自动检测 `OPENAI_*` 环境变量并启动内置代理。
+
+**方式二：手动分步启动**
+
+```bash
+# 终端 1：启动代理
+node --env-file=.env openai-proxy.js
+
+# 终端 2：启动 Claude Code，指向本地代理
+ANTHROPIC_BASE_URL=http://127.0.0.1:19999 ANTHROPIC_API_KEY=dummy node package/cli.js
+```
+
+**健康检查：**
+
+```bash
+curl http://127.0.0.1:19999/health
+```
+
+### 注意事项
+
+- `.env` 文件包含 API Key，**不要提交到 Git**（已在 `.gitignore` 中排除）
+- 如需分享配置模板，使用 `.env.example` 并留空 Key 字段
+
 ## 声明
 
 - 源码版权归 [Anthropic](https://www.anthropic.com) 所有

@@ -20,6 +20,24 @@
 import http from 'node:http'
 import https from 'node:https'
 import { URL } from 'node:url'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+// Load .env from project root (env vars already set take precedence)
+try {
+  const __dir = dirname(fileURLToPath(import.meta.url))
+  const raw = readFileSync(join(__dir, '.env'), 'utf8')
+  for (const line of raw.split('\n')) {
+    const t = line.trim()
+    if (!t || t.startsWith('#')) continue
+    const eq = t.indexOf('=')
+    if (eq < 0) continue
+    const key = t.slice(0, eq).trim()
+    const val = t.slice(eq + 1).trim().replace(/^["']|["']$/g, '')
+    if (key && process.env[key] === undefined) process.env[key] = val
+  }
+} catch { /* .env not found */ }
 
 const PORT = parseInt(process.env.PROXY_PORT || '19999', 10)
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1'
@@ -424,6 +442,27 @@ function createServer() {
         oaiRes.on('end', () => r(Buffer.concat(chunks).toString()))
       })
       console.error(`[proxy] upstream ${oaiRes.statusCode}:`, errBody.slice(0, 200))
+
+      // Try to detect context length overflow and reformat as Anthropic-style error
+      // so withRetry.ts can parse it and auto-reduce max_tokens
+      let parsedErr
+      try { parsedErr = JSON.parse(errBody) } catch { /* ignore */ }
+      const upstreamMsg = parsedErr?.error?.message || ''
+      const overflowMatch = upstreamMsg.match(/maximum context length is (\d+).*?(\d+) input tokens/s)
+      if (oaiRes.statusCode === 400 && overflowMatch) {
+        const contextLimit = parseInt(overflowMatch[1], 10)
+        const inputTokens = parseInt(overflowMatch[2], 10)
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({
+          type: 'error',
+          error: {
+            type: 'invalid_request_error',
+            message: `input length and \`max_tokens\` exceed context limit: ${inputTokens} + ${oaiBody.max_tokens} > ${contextLimit}`,
+          },
+        }))
+        return
+      }
+
       res.writeHead(oaiRes.statusCode, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({
         error: { type: 'api_error', message: `Upstream ${oaiRes.statusCode}: ${errBody}` },

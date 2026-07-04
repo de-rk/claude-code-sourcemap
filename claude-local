@@ -1,2 +1,6 @@
 #!/bin/zsh
-exec node --env-file="$(dirname "$0")/.env" "$(dirname "$0")/package/cli.js" "$@"
+DIR="$(dirname "$0")"
+node "$DIR/openai-proxy.js" > /dev/null 2>&1 &
+PROXY_PID=$!
+ANTHROPIC_BASE_URL=http://127.0.0.1:19999 node "$DIR/package/cli.js" "$@"
+kill $PROXY_PID 2>/dev/null

@@ -82,25 +82,22 @@ OPENAI_API_KEY=ollama
 OPENAI_MODEL=qwen2.5-coder:32b
 ```
 
-### 启动方式
+### 启动方式（推荐：claude-local）
 
-**方式一：一条命令启动（推荐）**
-
-```bash
-node --env-file=.env package/cli.js
-```
-
-Claude Code 会自动检测 `OPENAI_*` 环境变量并启动内置代理。
-
-**方式二：手动分步启动**
+`claude-local` 是推荐的启动脚本，会自动在后台启动代理，退出时自动关闭：
 
 ```bash
-# 终端 1：启动代理
-node --env-file=.env openai-proxy.js
-
-# 终端 2：启动 Claude Code，指向本地代理
-ANTHROPIC_BASE_URL=http://127.0.0.1:19999 ANTHROPIC_API_KEY=dummy node package/cli.js
+claude-local
 ```
+
+首次使用需将脚本目录加入 PATH（只需执行一次）：
+
+```bash
+echo 'export PATH="/path/to/claude-code-sourcemap:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+> `claude-local` 会自动读取同目录的 `.env` 配置，无需手动传入任何环境变量。
 
 **健康检查：**
 
@@ -112,6 +109,8 @@ curl http://127.0.0.1:19999/health
 
 - `.env` 文件包含 API Key，**不要提交到 Git**（已在 `.gitignore` 中排除）
 - 如需分享配置模板，使用 `.env.example` 并留空 Key 字段
+- 如果使用 `~/.claude/settings.json` 配置了 `ANTHROPIC_BASE_URL`，需将其删除，否则会覆盖本地代理地址导致 401 错误
+- 不要同时手动运行 `openai-proxy.js` 再用 `claude-local` 启动，会导致端口 `19999` 冲突（`EADDRINUSE`）
 
 ## 声明
 

@@ -382,6 +382,36 @@ function forwardToOpenAI(oaiBody, baseUrl, apiKey) {
   })
 }
 
+async function drainResponse(res) {
+  return new Promise(r => {
+    res.on('data', () => {})
+    res.on('end', r)
+  })
+}
+
+async function forwardWithRetry(oaiBody, baseUrl, apiKey, maxRetries = 4) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const oaiRes = await forwardToOpenAI(oaiBody, baseUrl, apiKey)
+    if (oaiRes.statusCode !== 429) return oaiRes
+
+    // Parse Retry-After header if present
+    const retryAfter = oaiRes.headers?.['retry-after']
+    const delay = retryAfter
+      ? Math.min(parseFloat(retryAfter) * 1000, 60000)
+      : Math.min(1000 * Math.pow(2, attempt), 30000)
+
+    await drainResponse(oaiRes)
+
+    if (attempt < maxRetries) {
+      console.error(`[proxy] 429 rate limit, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`)
+      await new Promise(r => setTimeout(r, delay))
+    } else {
+      // Last attempt still 429, return it for the caller to handle
+      return forwardToOpenAI(oaiBody, baseUrl, apiKey)
+    }
+  }
+}
+
 function createServer() {
   return http.createServer(async (req, res) => {
     const baseUrl = process.env.OPENAI_BASE_URL || OPENAI_BASE_URL
@@ -427,7 +457,7 @@ function createServer() {
 
     let oaiRes
     try {
-      oaiRes = await forwardToOpenAI(oaiBody, baseUrl, apiKey)
+      oaiRes = await forwardWithRetry(oaiBody, baseUrl, apiKey)
     } catch (e) {
       console.error('[proxy] upstream error:', e.message)
       res.writeHead(502)

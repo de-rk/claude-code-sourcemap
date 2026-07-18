@@ -244,6 +244,11 @@ function buildAnthropicResponse(oaiResponse, requestId) {
 // ─── Streaming conversion ────────────────────────────────────────────────────
 
 function* convertSSEChunk(line, state) {
+  // Forward keep-alive comments from upstream (e.g. DeepSeek ": keep-alive")
+  if (line.startsWith(':')) {
+    yield `: keep-alive\n\n`
+    return
+  }
   if (!line.startsWith('data: ')) return
   const data = line.slice(6).trim()
   if (data === '[DONE]') {
@@ -376,6 +381,8 @@ function forwardToOpenAI(oaiBody, baseUrl, apiKey) {
     }
 
     const req = lib.request(options, resolve)
+    req.setTimeout(660000) // 11 min — DeepSeek closes idle connections at 10 min
+    req.on('timeout', () => req.destroy(new Error('upstream request timeout')))
     req.on('error', reject)
     req.write(body)
     req.end()

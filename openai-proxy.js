@@ -381,8 +381,6 @@ function forwardToOpenAI(oaiBody, baseUrl, apiKey) {
     }
 
     const req = lib.request(options, resolve)
-    req.setTimeout(660000) // 11 min — DeepSeek closes idle connections at 10 min
-    req.on('timeout', () => req.destroy(new Error('upstream request timeout')))
     req.on('error', reject)
     req.write(body)
     req.end()
